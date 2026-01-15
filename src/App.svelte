@@ -6,6 +6,7 @@
     import Links from './lib/components/Links.svelte'
     import Settings from './lib/components/Settings.svelte'
     import Stats from './lib/components/Stats.svelte'
+    import Stocks from './lib/components/Stocks.svelte'
     import Tasks from './lib/components/Tasks.svelte'
     import Weather from './lib/components/Weather.svelte'
     import { saveSettings } from './lib/stores/settings-store.svelte.js'
@@ -76,10 +77,21 @@
                 {/if}
             </div>
         {/if}
-        {#if settings.showWeather || settings.showTasks}
+        {#if settings.showWeather || settings.showTasks || settings.showStocks}
             <div class="widgets">
                 {#if settings.showWeather}
-                    <Weather class={!settings.showTasks ? 'expand' : ''} />
+                    <Weather
+                        class={!settings.showTasks && !settings.showStocks
+                            ? 'expand'
+                            : ''}
+                    />
+                {/if}
+                {#if settings.showStocks}
+                    <Stocks
+                        class={!settings.showTasks && !settings.showWeather
+                            ? 'expand'
+                            : ''}
+                    />
                 {/if}
                 {#if settings.showTasks}
                     <Tasks />
