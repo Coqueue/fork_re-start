@@ -38,6 +38,11 @@ let defaultSettings = {
     showStats: true,
     showWeather: true,
     showTasks: true,
+    showStocks: true,
+    stocks: [
+        { symbol: 'LLY', name: 'Eli Lilly' },
+        { symbol: '3350.T', name: 'Meta Planet' },
+    ],
     showLinks: true,
 }
 
