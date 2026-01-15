@@ -67,6 +67,14 @@
         settings.links = settings.links.filter((_, i) => i !== index)
     }
 
+    function addStock() {
+        settings.stocks = [...settings.stocks, { symbol: '', name: '' }]
+    }
+
+    function removeStock(index) {
+        settings.stocks = settings.stocks.filter((_, i) => i !== index)
+    }
+
     function handleClose() {
         saveSettings(settings)
         closeSettings()
@@ -219,6 +227,7 @@
                     <Checkbox bind:checked={settings.showWeather}>
                         weather
                     </Checkbox>
+                    <Checkbox bind:checked={settings.showStocks}>stocks</Checkbox>
                     <Checkbox bind:checked={settings.showTasks}>tasks</Checkbox>
                     <Checkbox bind:checked={settings.showLinks}>links</Checkbox>
                 </div>
@@ -467,6 +476,37 @@
                     </RadioButton>
                 </div>
             </div>
+            <div class="group">
+                <div class="links-header">
+                    <div class="setting-label">stocks</div>
+                    <button class="add-btn" onclick={addStock}>add stock</button>
+                </div>
+                <div class="links-list">
+                    {#each settings.stocks as stock, index}
+                        <div class="link" role="listitem">
+                            <input
+                                type="text"
+                                bind:value={stock.symbol}
+                                placeholder="symbol (e.g. AAPL)"
+                                class="link-input name"
+                            />
+                            <input
+                                type="text"
+                                bind:value={stock.name}
+                                placeholder="name (e.g. Apple)"
+                                class="link-input"
+                            />
+                            <button
+                                class="remove-btn"
+                                onclick={() => removeStock(index)}
+                            >
+                                x
+                            </button>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+
             <div class="group">
                 <label for="linksPerColumn">links per column</label>
                 <input
