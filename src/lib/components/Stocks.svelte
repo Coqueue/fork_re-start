@@ -19,53 +19,79 @@
     // I will use a CORS proxy to ensure it works.
     // 'https://corsproxy.io/?' is a common one, or I can try without it first.
 
+    async function fetchJsonWithTimeout(url, options = {}) {
+        const { timeout = 8000, ...fetchOptions } = options
+        const controller = new AbortController()
+        const id = setTimeout(() => controller.abort(), timeout)
+        try {
+            const response = await fetch(url, { ...fetchOptions, signal: controller.signal })
+            if (!response.ok) throw new Error(`Response not ok: ${response.status}`)
+            const data = await response.json()
+            return data
+        } finally {
+            clearTimeout(id)
+        }
+    }
+
     async function fetchStockData(symbol) {
         // Range 1mo, interval 1d for sparkline
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1mo`
 
         // Try direct first
         try {
-            const response = await fetch(url)
-            if (!response.ok) throw new Error('Network response was not ok')
-            const data = await response.json()
+            const data = await fetchJsonWithTimeout(url)
             return processData(data, symbol)
         } catch (e) {
             console.warn(`Direct fetch failed for ${symbol}, trying proxy...`, e)
             // Fallback to a CORS proxy if direct fails
             // Note: Public proxies are not reliable for production, but okay for a demo/widget like this.
             const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
-            const response = await fetch(proxyUrl)
-            if (!response.ok) throw new Error('Proxy response was not ok')
-            const data = await response.json()
-            return processData(data, symbol)
+            try {
+                const data = await fetchJsonWithTimeout(proxyUrl)
+                return processData(data, symbol)
+            } catch (e2) {
+                // If both fail, throw the original error or the new one
+                console.error(`Proxy fetch failed for ${symbol}`, e2)
+                throw e2
+            }
         }
     }
 
     function processData(data, symbol) {
-        const result = data.chart.result[0]
-        const quote = result.indicators.quote[0]
-        const timestamps = result.timestamp
-        const prices = quote.close
-
-        // Filter out nulls
-        const cleanPrices = []
-        for (let i = 0; i < prices.length; i++) {
-            if (prices[i] !== null && prices[i] !== undefined) {
-                cleanPrices.push(prices[i])
+        try {
+            if (!data.chart || !data.chart.result || data.chart.result.length === 0) {
+                throw new Error('Invalid data structure')
             }
-        }
 
-        const currentPrice = result.meta.regularMarketPrice
-        const prevClose = result.meta.chartPreviousClose
-        const change = currentPrice - prevClose
-        const changePercent = (change / prevClose) * 100
+            const result = data.chart.result[0]
+            const quote = result.indicators.quote[0]
+            // timestamps might not be needed for sparkline if we assume equal intervals, but good to have
 
-        return {
-            symbol: symbol,
-            price: currentPrice,
-            change: change,
-            changePercent: changePercent,
-            history: cleanPrices
+            const prices = quote.close || []
+
+            // Filter out nulls
+            const cleanPrices = []
+            for (let i = 0; i < prices.length; i++) {
+                if (prices[i] !== null && prices[i] !== undefined) {
+                    cleanPrices.push(prices[i])
+                }
+            }
+
+            const currentPrice = result.meta.regularMarketPrice
+            const prevClose = result.meta.chartPreviousClose
+            const change = currentPrice - prevClose
+            const changePercent = prevClose ? (change / prevClose) * 100 : 0
+
+            return {
+                symbol: symbol,
+                price: currentPrice,
+                change: change,
+                changePercent: changePercent,
+                history: cleanPrices
+            }
+        } catch (e) {
+            console.error('Error processing data for ' + symbol, e)
+            throw e
         }
     }
 
@@ -73,6 +99,14 @@
         if (loading) return
         loading = true
         error = ''
+
+        // Don't clear stocks immediately to prevent flickering if refresh fails
+        // But we might want to indicate reloading?
+        // The user complained about "loading forever", so maybe clearing is safer to ensure we don't show stale state as current if it's stuck.
+        // However, standard pattern is to keep old data while fetching new.
+        // But here we'll follow the existing pattern but just not clear it if we want to avoid flicker.
+        // Actually, existing code cleared it: stocks = []
+        // Let's keep it clearing for now to be safe, or if the user wants to see it refreshing.
         stocks = []
 
         try {
@@ -147,7 +181,7 @@
 </script>
 
 <div class="panel-wrapper {className}">
-    <button class="widget-label" onclick={loadStocks} disabled={loading}>
+    <button class="widget-label" onclick={loadStocks} disabled={loading} title="refresh stocks">
         {loading ? 'loading...' : 'stocks'}
     </button>
 
