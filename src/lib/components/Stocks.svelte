@@ -21,6 +21,7 @@
 
     async function fetchJsonWithTimeout(url, options = {}) {
         const { timeout = 8000, ...fetchOptions } = options
+        console.log(`Fetching ${url} with timeout ${timeout}`)
         const controller = new AbortController()
         const id = setTimeout(() => controller.abort(), timeout)
         try {
@@ -37,24 +38,29 @@
         // Range 1mo, interval 1d for sparkline
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1mo`
 
-        // Try direct first
-        try {
-            const data = await fetchJsonWithTimeout(url)
-            return processData(data, symbol)
-        } catch (e) {
-            console.warn(`Direct fetch failed for ${symbol}, trying proxy...`, e)
-            // Fallback to a CORS proxy if direct fails
-            // Note: Public proxies are not reliable for production, but okay for a demo/widget like this.
-            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+        // List of endpoints to try in order.
+        // 1. Direct
+        // 2. allorigins.win (fallback)
+        // corsproxy.io seems unstable in some environments, removed for now.
+        const candidates = [
+            url,
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+        ]
+
+        let lastError
+        for (const candidateUrl of candidates) {
             try {
-                const data = await fetchJsonWithTimeout(proxyUrl)
+                // Timeout per request.
+                const data = await fetchJsonWithTimeout(candidateUrl, { timeout: 5000 })
                 return processData(data, symbol)
-            } catch (e2) {
-                // If both fail, throw the original error or the new one
-                console.error(`Proxy fetch failed for ${symbol}`, e2)
-                throw e2
+            } catch (e) {
+                console.warn(`Fetch failed for ${symbol} via ${candidateUrl}`, e)
+                lastError = e
             }
         }
+
+        console.error(`All fetch attempts failed for ${symbol}`, lastError)
+        throw lastError
     }
 
     function processData(data, symbol) {
